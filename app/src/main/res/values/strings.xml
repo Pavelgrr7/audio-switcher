@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">AudioSwitcher</string>
+    <string name="active_mode">Active mode</string>
+    <string name="accessibility_description">this service needed to keep functionality when device is turned off</string>
+    <string name="foreground_mode">Background service mode</string>
+    <string name="off_mode">Off</string>
+    <string name="select_mode_text">Select service mode:</string>
+    <string name="enable_accessibility_button">Enable music control</string>
+    <string name="welcome_text">Welcome to the service control panel!</string>
+</resources>

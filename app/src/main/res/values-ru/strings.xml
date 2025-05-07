@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AudioSwitcher</string>
+    <string name="active_mode">Активный режим (работает всегда)</string>
+    <string name="accessibility_description">Для корректной работы функционала сервиса нужно разрешение на работу в фоне.</string>
+    <string name="foreground_mode">Только при заблокированном экране</string>
+    <string name="off_mode">Выключено</string>
+    <string name="select_mode_text">Выберите режим работы:</string>
+    <string name="enable_accessibility_button">Включить управление музыкой</string>
+    <string name="welcome_text">Добро пожаловать в панель управления сервисом!</string>
+</resources>
