@@ -16,7 +16,6 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -33,33 +31,29 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.LiveData
 import androidx.lifecycle.Observer
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelStoreOwner
+//import androidx.lifecycle.ViewModel
+//import androidx.lifecycle.ViewModelStoreOwner
 import com.settery.audioswitcher.ui.theme.AudioSwitcherTheme
-lateinit var viewModel: ServiceViewModel
+import androidx.activity.viewModels
+
 
 class MainActivity : ComponentActivity() {
+
+    private val viewModel: ServiceViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val viewModelHolder = ViewModelHolder(this)
-        viewModel = viewModelHolder.get("AlarmViewModel") {
-            ServiceViewModel(application)
-        }
+//        val viewModelHolder = ViewModelHolder(this)
+//        viewModel = viewModelHolder.get("AlarmViewModel") {
+//            ServiceViewModel(application)
+//        }
         viewModel.loadMode()
         viewModel.currentMode.observe(this) { mode ->
             VolumeButtonService.updateServiceMode(this, mode)
@@ -68,8 +62,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             AudioSwitcherTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    val currentMode by viewModel.currentMode.observeAsState(initial = viewModel.currentMode.value ?: Mode.OFF)
+
                     MainScreen(
-                        modifier = Modifier.padding(innerPadding)
+                        modifier = Modifier.padding(innerPadding),
+                        currentMode = currentMode,
+                        onModeSelected = { newMode -> viewModel.setMode(newMode) },
+                        onEnableServiceClicked = {
+                            if (!isAccessibilityServiceEnabled(this, VolumeButtonService::class.java)) {
+                                openAccessibilitySettings(this)
+                            }
+                        },
+                        isAccessibilityServiceEnabled = isAccessibilityServiceEnabled(this, VolumeButtonService::class.java)
                     )
                 }
             }
@@ -95,9 +99,13 @@ class MainActivity : ComponentActivity() {
 
 }
 @Composable
-fun MainScreen(modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val selectedMode: MutableState<Mode> = viewModel.currentMode.observeAsState() as MutableState<Mode>
+fun MainScreen(
+    modifier: Modifier = Modifier,
+    currentMode: Mode,
+    onModeSelected: (Mode) -> Unit,
+    onEnableServiceClicked: () -> Unit,
+    isAccessibilityServiceEnabled: Boolean
+) {
 
     Column(
         modifier = modifier
@@ -106,12 +114,47 @@ fun MainScreen(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         HeaderSection()
-        EnableServiceButton()
+        EnableServiceButton(
+            onClick = onEnableServiceClicked,
+        )
 
         ModeSelectionSection(
-            selectedMode = selectedMode,
-            onModeSelected = { viewModel.setMode(it) }
+            selectedMode = currentMode,
+            onModeSelected = onModeSelected
         )
+    }
+}
+
+@Composable
+private fun EnableServiceButton(onClick: () -> Unit) {
+
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(stringResource(R.string.enable_accessibility_button))
+    }
+}
+
+@Composable
+private fun ModeSelectionSection(
+    selectedMode: Mode,
+    onModeSelected: (Mode) -> Unit
+) {
+    Column {
+        Text(
+            text = stringResource(R.string.select_mode_text),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        listOf(Mode.ACTIVE, Mode.FOREGROUND, Mode.OFF).forEach { mode ->
+            ModeSelectionItem(
+                mode = mode,
+                isSelected = selectedMode == mode,
+                onSelected = { onModeSelected(mode) }
+            )
+        }
     }
 }
 
@@ -124,40 +167,6 @@ private fun HeaderSection() {
         )
     }
 }
-
-@Composable
-private fun EnableServiceButton() {
-    val context = LocalContext.current
-
-    Button(
-        onClick = { if (!isAccessibilityServiceEnabled(context, VolumeButtonService::class.java)) openAccessibilitySettings(context) },
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(stringResource(R.string.enable_accessibility_button))
-    }
-}
-@Composable
-private fun ModeSelectionSection(
-    selectedMode: MutableState<Mode>,       // Текущий выбранный режим
-    onModeSelected: (Mode) -> Unit // Колбэк при выборе
-) {
-    Column {
-        Text(
-            text = stringResource(R.string.select_mode_text),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        listOf(Mode.ACTIVE, Mode.FOREGROUND, Mode.OFF).forEach { mode ->
-            ModeSelectionItem(
-                mode = mode,
-                isSelected = selectedMode.value == (mode),
-                onSelected = { onModeSelected(mode) }
-            )
-        }
-    }
-}
-
 @Composable
 private fun ModeSelectionItem(
     mode: Mode,
@@ -186,20 +195,6 @@ private fun ModeSelectionItem(
         )
     }
 }
-//
-//@Composable
-//fun <T> LiveData<T>.observeAsState(): MutableState<T?> {
-//    val lifecycleOwner = LocalLifecycleOwner.current
-//    val state = remember { mutableStateOf(value) }
-//
-//    DisposableEffect(this, lifecycleOwner) {
-//        val observer = Observer<T> { state.value = it }
-//        observe(lifecycleOwner, observer)
-//        onDispose { removeObserver(observer) }
-//    }
-//
-//    return state
-//}
 
 fun isAccessibilityServiceEnabled(
     context: Context,
@@ -220,19 +215,25 @@ fun openAccessibilitySettings(context: Context) {
     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
     context.startActivity(intent)
 }
+
 @Preview(showBackground = true)
 @Composable
-fun Preview() {
+fun MainScreenPreview() {
     AudioSwitcherTheme {
-        MainScreen()
+        MainScreen(
+            currentMode = Mode.ACTIVE,
+            onModeSelected = {},
+            onEnableServiceClicked = {},
+            isAccessibilityServiceEnabled = true
+        )
     }
 }
 
-class ViewModelHolder(owner: ViewModelStoreOwner) {
-    private val store = owner.viewModelStore
-    private val viewModels = mutableMapOf<String, ViewModel>()
-
-    fun <T : ViewModel> get(key: String, creator: () -> T): T {
-        return viewModels.getOrPut(key) { creator() } as T
-    }
-}
+//class ViewModelHolder(owner: ViewModelStoreOwner) {
+//    private val store = owner.viewModelStore
+//    private val viewModels = mutableMapOf<String, ViewModel>()
+//
+//    fun <T : ViewModel> get(key: String, creator: () -> T): T {
+//        return viewModels.getOrPut(key) { creator() } as T
+//    }
+//}

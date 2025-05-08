@@ -15,6 +15,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
@@ -24,7 +25,6 @@ import androidx.core.content.ContextCompat
 
 const val ACTION_UPDATE_MODE = "com.settery.audioswitcher.UPDATE_MODE"
 const val EXTRA_MODE = "extra_mode"
-//const val KEY_SERVICE_MODE = "service_mode_key"
 
 class VolumeButtonService : AccessibilityService() {
 
@@ -43,18 +43,19 @@ class VolumeButtonService : AccessibilityService() {
             }
         }
     }
-    private var isLongPress = false
+//    private var isLongPress = false
     private var currentKeyCode: Int? = null
     private var pressStartTime = 0L
     private val LONG_PRESS_THRESHOLD = 500L
     private var isHandledAsLongPress = false
+    private lateinit var wakeLock: PowerManager.WakeLock
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (currentMode == Mode.OFF) return false
         if (currentMode == Mode.ACTIVE && keyguardManager.isDeviceLocked) return false
         if (currentMode == Mode.FOREGROUND && !keyguardManager.isDeviceLocked) {
+            Log.d("VolumeBut6tonService", "status: ${keyguardManager.isDeviceLocked}")
             return false
-            Log.d("VolumeButtonService", "status: ${keyguardManager.isDeviceLocked}")
         }
 
         return when (event.action) {
@@ -108,23 +109,6 @@ class VolumeButtonService : AccessibilityService() {
             AudioManager.FLAG_SHOW_UI
         )
     }
-
-//    private val longPressRunnable = Runnable {
-//        isLongPress = true
-//        when (currentKeyCode) {
-//            KeyEvent.KEYCODE_VOLUME_UP -> sendMediaCommand(KeyEvent.KEYCODE_MEDIA_NEXT)
-//            KeyEvent.KEYCODE_VOLUME_DOWN -> sendMediaCommand(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-//        }
-//    }
-//    private fun suppressDefaultVolumeChange() {
-//        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-//        audioManager.adjustStreamVolume(
-//            AudioManager.STREAM_MUSIC,
-//            AudioManager.ADJUST_SAME,
-//            AudioManager.FLAG_SHOW_UI
-//        )
-//    }
-
     private fun getModeFromIntent(intent: Intent): Mode? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getSerializableExtra(EXTRA_MODE, Mode::class.java)
@@ -136,6 +120,9 @@ class VolumeButtonService : AccessibilityService() {
 
     override fun onCreate() {
         super.onCreate()
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MyApp::MyWakelockTag")
+        wakeLock.acquire(10*60*1000L /*10 minutes*/)
         keyguardManager = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
 
         Log.d("VolumeButtonService", "onCreate: Creating notification channel and starting foreground.")
@@ -168,6 +155,9 @@ class VolumeButtonService : AccessibilityService() {
             unregisterReceiver(modeReceiver)
         } catch (e: IllegalArgumentException) {
             Log.w("VolumeButtonService", "Receiver already unregistered?")
+        }
+        if (wakeLock.isHeld) {
+            wakeLock.release()
         }
         super.onDestroy()
     }
@@ -204,7 +194,7 @@ class VolumeButtonService : AccessibilityService() {
             .setSmallIcon(notificationIcon)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW) // high?
+            .setPriority(NotificationCompat.PRIORITY_HIGH) // high?
             .build()
     }
 
@@ -255,37 +245,6 @@ class VolumeButtonService : AccessibilityService() {
         Log.w("VolumeButtonService", "Accessibility service interrupted!")
     }
 
-//    override fun onKeyEvent(event: KeyEvent): Boolean {
-//        Log.d("VolumeButtonService", "onKeyEvent Received! Action: ${event.action}, KeyCode: ${event.keyCode}, Mode: $currentMode")
-//
-//        if (currentMode == Mode.OFF) {
-//            return super.onKeyEvent(event)
-//        }
-//
-//        if (currentMode == Mode.FOREGROUND) {
-//            if (!keyguardManager.isKeyguardLocked) {
-//                return super.onKeyEvent(event)
-//            }
-//        }
-//
-//        if (event.action == KeyEvent.ACTION_DOWN) {
-//            when (event.keyCode) {
-//                KeyEvent.KEYCODE_VOLUME_UP -> {
-//                    sendMediaCommand(KeyEvent.KEYCODE_MEDIA_NEXT)
-//                    return true
-//                }
-//                KeyEvent.KEYCODE_VOLUME_DOWN -> {
-//                    sendMediaCommand(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-//                    return true
-//                }
-//            }
-//        }
-//
-//        // В данном случае, если это не ACTION_DOWN или не клавиша громкости, передаем дальше.
-//        return super.onKeyEvent(event)
-//    }
-
-
     private fun sendMediaCommand(keyCode: Int) {
         Log.d("VolumeButtonService", "Attempting to send media command: $keyCode")
 
@@ -307,6 +266,20 @@ class VolumeButtonService : AccessibilityService() {
             Log.e("VolumeButtonService", "Error sending media command $keyCode", e)
         }
     }
+    override fun onUnbind(intent: Intent?): Boolean {
+        Log.e("VolumeButtonService", "onUnbind called. Service is being stopped by system or user.")
+        // Здесь можно попробовать запланировать "перезапуск" или уведомить пользователя,
+        // но для AccessibilityService это обычно означает, что пользователь его отключил.
+        // Важно вызвать stopForeground и unregisterReceiver, как в onDestroy.
+        // stopForeground(STOP_FOREGROUND_REMOVE) // или stopForeground(true)
+        // try {
+        //     unregisterReceiver(modeReceiver)
+        // } catch (e: IllegalArgumentException) {
+        //     Log.w("VolumeButtonService", "Receiver already unregistered in onUnbind?")
+        // }
+        return super.onUnbind(intent) // или true, если хочешь чтобы onRebind вызвался
+    }
+
 
     companion object {
         const val ACTION_UPDATE_MODE = "com.settery.audioswitcher.UPDATE_MODE"
