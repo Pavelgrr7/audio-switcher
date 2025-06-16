@@ -4,4 +4,5 @@
     android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFlags="flagRequestFilterKeyEvents"
     android:canRequestFilterKeyEvents="true"
+    android:canRetrieveWindowContent="true"
     android:settingsActivity="com.settery.audioswitcher.MainActivity" />

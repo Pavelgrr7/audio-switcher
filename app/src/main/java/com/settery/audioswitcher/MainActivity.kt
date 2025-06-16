@@ -11,7 +11,6 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -36,11 +35,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Observer
-//import androidx.lifecycle.ViewModel
-//import androidx.lifecycle.ViewModelStoreOwner
 import com.settery.audioswitcher.ui.theme.AudioSwitcherTheme
 import androidx.activity.viewModels
+import java.security.acl.Permission
 
 
 class MainActivity : ComponentActivity() {
@@ -50,15 +47,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-//        val viewModelHolder = ViewModelHolder(this)
-//        viewModel = viewModelHolder.get("AlarmViewModel") {
-//            ServiceViewModel(application)
-//        }
+
         viewModel.loadMode()
         viewModel.currentMode.observe(this) { mode ->
             VolumeButtonService.updateServiceMode(this, mode)
         }
         requestIgnoreBatteryOptimizations()
+        showPowerManagerSettings()
         setContent {
             AudioSwitcherTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -94,6 +89,43 @@ class MainActivity : ComponentActivity() {
                     Log.w("MainActivity", "Cannot request ignore battery optimizations: Intent not resolvable.")
                 }
             }
+        }
+    }
+
+
+    private fun showPowerManagerSettings() {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        var intent: Intent? = null
+
+        when {
+            // Xiaomi
+            manufacturer.contains("xiaomi") -> {
+                intent = Intent()
+                intent.component = ComponentName(
+                    "com.miui.powerkeeper",
+                    "com.miui.powerkeeper.ui.HiddenAppsConfigActivity"
+                )
+                intent.putExtra("package_name", packageName)
+                intent.putExtra("package_label", getString(R.string.app_name))
+            }
+            // Samsung
+            manufacturer.contains("samsung") -> {
+                intent = Intent()
+
+                intent.component = ComponentName(
+                    "com.samsung.android.lool",
+                    "com.samsung.android.sm.ui.battery.BatteryActivity"
+                )
+            }
+            // Huawei
+            manufacturer.contains("huawei") -> {
+                intent = Intent()
+                intent.component = ComponentName(
+                    "com.huawei.systemmanager",
+                    "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"
+                )
+            }
+            //Maybe I should add other manufacturers here
         }
     }
 
@@ -228,12 +260,3 @@ fun MainScreenPreview() {
         )
     }
 }
-
-//class ViewModelHolder(owner: ViewModelStoreOwner) {
-//    private val store = owner.viewModelStore
-//    private val viewModels = mutableMapOf<String, ViewModel>()
-//
-//    fun <T : ViewModel> get(key: String, creator: () -> T): T {
-//        return viewModels.getOrPut(key) { creator() } as T
-//    }
-//}
