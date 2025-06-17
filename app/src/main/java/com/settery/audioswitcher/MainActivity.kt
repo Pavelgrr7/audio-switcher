@@ -10,11 +10,10 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,14 +29,14 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.settery.audioswitcher.ui.theme.AudioSwitcherTheme
-import androidx.activity.viewModels
-import java.security.acl.Permission
 
 
 class MainActivity : ComponentActivity() {
@@ -57,7 +56,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             AudioSwitcherTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    val currentMode by viewModel.currentMode.observeAsState(initial = viewModel.currentMode.value ?: Mode.OFF)
+                    val currentMode by viewModel.currentMode.observeAsState(
+                        initial = viewModel.currentMode.value ?: Mode.OFF
+                    )
 
                     MainScreen(
                         modifier = Modifier.padding(innerPadding),

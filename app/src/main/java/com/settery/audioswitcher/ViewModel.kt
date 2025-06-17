@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+
 const val KEY_SERVICE_MODE = "service_mode_key"
 
 class ServiceViewModel(application: Application) : AndroidViewModel(application) {

@@ -46,9 +46,12 @@ class VolumeButtonService : AccessibilityService() {
     private val LONG_PRESS_THRESHOLD = 500L
     private var isHandledAsLongPress = false
     private lateinit var wakeLock: PowerManager.WakeLock
+    private val powerManager by lazy {getSystemService(POWER_SERVICE) as PowerManager}
+
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
 
+        Log.d("VolumeButtonService", "onKeyEvent: ${powerManager.isInteractive} and ${currentMode}")
         if (isCameraActive) {
             Log.d("VolumeButtonService", "Camera is active, ignoring key event to allow shutter control.")
             return false
@@ -60,6 +63,7 @@ class VolumeButtonService : AccessibilityService() {
             Log.d("VolumeBut6tonService", "status: ${keyguardManager.isDeviceLocked}")
             return false
         }
+        if (currentMode == Mode.FOREGROUND && powerManager.isInteractive) return false
 //
 //        if (currentMode == Mode.FOREGROUND && cameraPackages.contains(packageName)) {
 //            Log.i("VolumeButtonService", "!!! Camera opened from lock screen: $packageName, no audio control")
