@@ -7,4 +7,8 @@
     <string name="select_mode_text">Select service mode:</string>
     <string name="enable_accessibility_button">Enable music control</string>
     <string name="welcome_text">Welcome to the service control panel!</string>
+    <string name="start_logs_recording">Start logging</string>
+    <string name="stop_logs_recording">Stop logging</string>
+    <string name="logs_dialog_title">Is the service not working properly?</string>
+    <string name="logs_dialog_subtitle">You can reproduce the bug and send us logs</string>
 </resources>

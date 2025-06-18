@@ -50,30 +50,25 @@ class VolumeButtonService : AccessibilityService() {
 
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-
-        Log.d("VolumeButtonService", "onKeyEvent: ${powerManager.isInteractive} and ${currentMode}")
+        Log.d("HELP", "test log")
+        val interactive = powerManager.isInteractive // Получаем один раз для консистентности в этом вызове
+        LogManager.log("VolumeButtonService", "[KEY_EVENT_ENTRY] Interactive: $interactive, Mode: $currentMode, Action: ${event.action}, KeyCode: ${event.keyCode}, Time: ${System.currentTimeMillis()}")
         if (isCameraActive) {
-            Log.d("VolumeButtonService", "Camera is active, ignoring key event to allow shutter control.")
+            LogManager.log("VolumeButtonService", "Camera is active, ignoring key event to allow shutter control.")
             return false
         }
-
         if (currentMode == Mode.OFF) return false
         if (currentMode == Mode.ACTIVE && keyguardManager.isDeviceLocked) return false
-        if (currentMode == Mode.FOREGROUND && !keyguardManager.isDeviceLocked) {
-            Log.d("VolumeBut6tonService", "status: ${keyguardManager.isDeviceLocked}")
+        if (currentMode == Mode.BACKGROUND) {
+            if (!keyguardManager.isDeviceLocked || interactive)
             return false
         }
-        if (currentMode == Mode.FOREGROUND && powerManager.isInteractive) return false
-//
-//        if (currentMode == Mode.FOREGROUND && cameraPackages.contains(packageName)) {
-//            Log.i("VolumeButtonService", "!!! Camera opened from lock screen: $packageName, no audio control")
-//            return false
-//        } else {
+        LogManager.log("VolumeButtonService", "Not interactive, right mode")
+
             return when (event.action) {
                 KeyEvent.ACTION_DOWN -> handleKeyDown(event)
                 KeyEvent.ACTION_UP -> handleKeyUp(event)
                 else -> false
-//            }
         }
     }
 
@@ -86,7 +81,7 @@ class VolumeButtonService : AccessibilityService() {
 
     private fun handleKeyUp(event: KeyEvent): Boolean {
         val pressDuration = System.currentTimeMillis() - pressStartTime
-
+        LogManager.log("VolumeButtonService", "handling key up: ${event.action}")
         if (pressDuration >= LONG_PRESS_THRESHOLD) {
             // Долгое нажатие - переключаем трек
             handleLongPress()
@@ -101,6 +96,7 @@ class VolumeButtonService : AccessibilityService() {
     }
 
     private fun handleLongPress() {
+        LogManager.log("VolumeButtonService", "Long press detected: $currentKeyCode")
         when (currentKeyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> sendMediaCommand(KeyEvent.KEYCODE_MEDIA_NEXT)
             KeyEvent.KEYCODE_VOLUME_DOWN -> sendMediaCommand(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
@@ -108,6 +104,7 @@ class VolumeButtonService : AccessibilityService() {
     }
 
     private fun handleShortPress(keyCode: Int) {
+        LogManager.log("VolumeButtonService", "Short press detected: $keyCode")
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         val direction = when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> AudioManager.ADJUST_RAISE
@@ -138,7 +135,7 @@ class VolumeButtonService : AccessibilityService() {
         for (resolveInfo in cameraApps) {
             val packageName = resolveInfo.activityInfo.packageName
             cameraPackages.add(packageName)
-            Log.d("VolumeButtonService", "Found camera app: $packageName")
+            LogManager.log("VolumeButtonService", "Found camera app: $packageName")
         }
     }
 
@@ -157,7 +154,7 @@ class VolumeButtonService : AccessibilityService() {
 
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(serviceChannel)
-            Log.d("VolumeButtonService", "Notification channel created.")
+            LogManager.log("VolumeButtonService", "Notification channel created.")
         }
     }
 
@@ -169,7 +166,7 @@ class VolumeButtonService : AccessibilityService() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         }
 
-        Log.d("VolumeButtonService", "Building notification.")
+        LogManager.log("VolumeButtonService", "Building notification.")
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Volume Key Control Active")
             .setContentText("Controlling media with volume keys.")
@@ -185,41 +182,41 @@ class VolumeButtonService : AccessibilityService() {
 
     private fun loadCurrentMode() {
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        val modeName = prefs.getString(KEY_SERVICE_MODE, Mode.OFF.name) ?: Mode.OFF.name
+        val modeName = prefs.getString(KEY_MODE, Mode.OFF.name) ?: Mode.OFF.name
         currentMode = try {
             Mode.valueOf(modeName)
         } catch (e: IllegalArgumentException) {
             Mode.OFF
         }
-        Log.d("VolumeButtonService", "Loaded mode: $currentMode")
+        LogManager.log("VolumeButtonService", "Loaded mode: $currentMode")
     }
 
     private fun saveCurrentMode(mode: Mode) {
         getSharedPreferences("app_prefs", MODE_PRIVATE).edit()
-            .putString(KEY_SERVICE_MODE, mode.name)
+            .putString(KEY_MODE, mode.name)
             .apply()
-        Log.d("VolumeButtonService", "Saved mode: $mode")
+        LogManager.log("VolumeButtonService", "Saved mode: $mode")
     }
 
     private fun updateMode(newMode: Mode) {
-        Log.d("VolumeButtonService", "Updating mode from $currentMode to $newMode")
+        LogManager.log("VolumeButtonService", "Updating mode from $currentMode to $newMode")
         currentMode = newMode
         saveCurrentMode(newMode)
 
         when (newMode) {
             Mode.OFF -> disableService()
-            Mode.ACTIVE, Mode.FOREGROUND -> enableService(newMode)
+            Mode.ACTIVE, Mode.BACKGROUND -> enableService(newMode)
         }
     }
 
     // service
 
     private fun enableService(mode: Mode) {
-        Log.i("VolumeButtonService", "Service logic enabled in $mode mode.")
+        LogManager.log("VolumeButtonService", "Service logic enabled in $mode mode.", LogLevel.INFO)
     }
 
     private fun disableService() {
-        Log.i("VolumeButtonService", "Service logic disabled (Mode OFF).")
+        LogManager.log("VolumeButtonService", "Service logic disabled (Mode OFF).", LogLevel.INFO)
         // нет stopSelf(), т.к. сервис оставаётся
         // запущенным в фоне (как service) даже в режиме OFF,
         // ожидая смены режима. ( но onKeyEvent игнорирует события)
@@ -234,14 +231,14 @@ class VolumeButtonService : AccessibilityService() {
         keyguardManager = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         loadCameraPackages()
 
-        Log.d("VolumeButtonService", "onCreate: Creating notification channel and starting foreground.")
+        LogManager.log("VolumeButtonService", "onCreate: Creating notification channel and starting foreground.", LogLevel.DEBUG)
         createNotificationChannel()
         val notification = createNotification()
         try {
             startForeground(NOTIFICATION_ID, notification)
-            Log.i("VolumeButtonService", "Service successfully started in foreground.")
+            LogManager.log("VolumeButtonService", "Service successfully started in foreground.", LogLevel.INFO)
         } catch (e: Exception) {
-            Log.e("VolumeButtonService", "Error starting foreground service", e)
+            LogManager.log("VolumeButtonService", "Error starting foreground service: \n${e.toString()}", LogLevel.ERROR)
         }
 
         val receiverFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -253,19 +250,19 @@ class VolumeButtonService : AccessibilityService() {
 
         loadCurrentMode()
 
-        Log.d("VolumeButtonService", "Service Created. Initial mode: $currentMode")
+        LogManager.log("VolumeButtonService", "Service Created. Initial mode: $currentMode")
 
         updateMode(currentMode)
     }
 
     override fun onDestroy() {
-        Log.d("VolumeButtonService", "onDestroy: Stopping foreground service.")
+        LogManager.log("VolumeButtonService", "onDestroy: Stopping foreground service.")
         stopForeground(true) // true = убрать уведомление
 
         try {
             unregisterReceiver(modeReceiver)
         } catch (e: IllegalArgumentException) {
-            Log.w("VolumeButtonService", "Receiver already unregistered?")
+            LogManager.log("VolumeButtonService", "Receiver already unregistered?", LogLevel.WARNING)
         }
         if (wakeLock.isHeld) {
             wakeLock.release()
@@ -280,7 +277,7 @@ class VolumeButtonService : AccessibilityService() {
             val packageName = event.packageName?.toString() ?: return
 
             if (cameraPackages.isEmpty()) {
-                Log.w("VolumeButtonService", "Camera packages list is empty, cannot check for camera.")
+                LogManager.log("VolumeButtonService", "Camera packages list is empty, cannot check for camera.", LogLevel.WARNING)
                 return
             }
 
@@ -288,27 +285,27 @@ class VolumeButtonService : AccessibilityService() {
 
             if (isCurrentWindowCamera && !isCameraActive) {
                 // Camera widdow just opened
-                Log.i("VolumeButtonService", "Camera app opened ($packageName). Pausing volume key handling.")
+                LogManager.log("VolumeButtonService", "Camera app opened ($packageName). Pausing volume key handling.", LogLevel.INFO)
                 isCameraActive = true
             } else if (!isCurrentWindowCamera && isCameraActive) {
                 // User closed camera window -> resume volume key handling
-                Log.i("VolumeButtonService", "Camera app closed or moved to background. Resuming volume key handling.")
+                LogManager.log("VolumeButtonService", "Camera app closed or moved to background. Resuming volume key handling.", LogLevel.INFO)
                 isCameraActive = false
             }
         }
     }
 
     override fun onInterrupt() {
-        Log.w("VolumeButtonService", "Accessibility service interrupted!")
+        LogManager.log("VolumeButtonService", "Accessibility service interrupted!", LogLevel.WARNING)
     }
 
     private fun sendMediaCommand(keyCode: Int) {
-        Log.d("VolumeButtonService", "Attempting to send media command: $keyCode")
+        LogManager.log("VolumeButtonService", "Attempting to send media command: $keyCode", LogLevel.DEBUG)
 
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager?
 
         if (audioManager == null) {
-            Log.e("VolumeButtonService", "AudioManager is null, cannot dispatch media key event.")
+            LogManager.log("VolumeButtonService", "AudioManager is null, cannot dispatch media key event.", LogLevel.WARNING)
             return
         }
 
@@ -318,19 +315,20 @@ class VolumeButtonService : AccessibilityService() {
         try {
             audioManager.dispatchMediaKeyEvent(downEvent)
             audioManager.dispatchMediaKeyEvent(upEvent)
-            Log.d("VolumeButtonService", "Dispatched media key event $keyCode using dispatchMediaKeyEvent.")
+            LogManager.log("VolumeButtonService", "Dispatched media key event $keyCode using dispatchMediaKeyEvent.")
         } catch (e: Exception) {
-            Log.e("VolumeButtonService", "Error sending media command $keyCode", e)
+            LogManager.log("VolumeButtonService", "Error sending media command $keyCode \n ${e.message}", LogLevel.ERROR)
         }
     }
     override fun onUnbind(intent: Intent?): Boolean {
-        Log.e("VolumeButtonService", "onUnbind called. Service is being stopped by system or user.")
+        LogManager.log("VolumeButtonService", "onUnbind called. Service is being stopped by system or user.",
+            LogLevel.ERROR)
         // Важно вызвать stopForeground и unregisterReceiver, как в onDestroy.
         // stopForeground(STOP_FOREGROUND_REMOVE) // или stopForeground(true)
          try {
              unregisterReceiver(modeReceiver)
          } catch (e: IllegalArgumentException) {
-             Log.w("VolumeButtonService", "Receiver already unregistered in onUnbind?")
+             LogManager.log("VolumeButtonService", "Receiver already unregistered in onUnbind?", LogLevel.WARNING)
          }
         return super.onUnbind(intent)
     }
@@ -340,7 +338,7 @@ class VolumeButtonService : AccessibilityService() {
         const val EXTRA_MODE = "extra_mode"
 
         fun updateServiceMode(context: Context, mode: Mode) {
-            Log.d("VolumeButtonService", "Sending broadcast to update mode: $mode")
+            LogManager.log("VolumeButtonService", "Sending broadcast to update mode: $mode")
             val intent = Intent(ACTION_UPDATE_MODE).apply {
                 putExtra(EXTRA_MODE, mode)
                 // это хорошая практика для локальных broadcast'ов
