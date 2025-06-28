@@ -17,6 +17,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
@@ -35,9 +36,6 @@ class MainActivity : ComponentActivity() {
         viewModel.currentMode.observe(this) { mode ->
             VolumeButtonService.updateServiceMode(this, mode)
         }
-        viewModel.loggingState.observe(this) { loggingState ->
-            LogManager.setLoggingState(loggingState)
-        }
         LogManager.initialize(application)
 
         requestIgnoreBatteryOptimizations()
@@ -47,32 +45,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             AudioSwitcherTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    val currentMode by viewModel.currentMode.observeAsState(
-                        initial = viewModel.currentMode.value ?: Mode.OFF
-                    )
-//                    val loggingState by viewModel.loggingState.observeAsState(
-//                        initial = viewModel.loggingState.value ?: LoggingState.OFF
-//                    )
                     MainScreen(
                         modifier = Modifier.padding(innerPadding),
-                        currentMode = currentMode,
-                        onModeSelected = { newMode -> viewModel.setMode(newMode) },
-                        onEnableServiceClicked = {
-                            if (!isAccessibilityServiceEnabled(this, VolumeButtonService::class.java)) {
-                                openAccessibilitySettings(this)
-                            }
-                        },
-                        onLoggingStateSelected = { newState -> viewModel.setLoggingState(newState)
-                            when(newState) {
-                                LoggingState.ACTIVE -> LogManager.startRecording()
-                                LoggingState.OFF -> {
-                                    LogManager.stopRecording()
-                                    LogManager.onSendReportClicked(this)
-                                }
-                            }
-                        },
-                        isAccessibilityServiceEnabled = isAccessibilityServiceEnabled(this, VolumeButtonService::class.java)
-                    )
+                        viewModel = viewModel,
+                        )
                 }
             }
         }
@@ -132,6 +108,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStop() {
+        super.onStop()
+
+    }
 }
 
 fun isAccessibilityServiceEnabled(
