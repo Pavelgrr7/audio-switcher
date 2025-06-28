@@ -10,7 +10,7 @@
 
 ### Prerequisites
 
-*   Android Android 9 (Pie) or higher.
+*   Android 9 (Pie) or higher.
 
 ### Installation
 
@@ -23,9 +23,12 @@
 2.  **Grant Permissions:** Before selecting the service mode, you must click the “Enable music control” button and give the application accessibility permission.
 3.  **Configure:** Select which mode you want to use through in the app's settings.
 4.  **All Set!** You can now long-press your volume up or down button to switch music playback.
+Note: The app requires Accessibility Service permission to detect long-presses of the volume buttons even when the screen is off or you are in another app. Audio Switcher **does not** collect any personal data, keystrokes, or passwords. This permission is used exclusively for its core functionality.
 
-If you run into any issues or have ideas for improving the app, please [open an issue](https://github.com/Pavelgrr7/audio-switcher/issues) in the Issues section. I'll do my best to help!
+### Issues
+If you run into any issues while using AudioSwitcher, you can use the log button in the right corner of the control panel. 
+Start logging and make a note of the problem you are experiencing, then send it to me personally or to [Open Issue](https://github.com/Pavelgrr7/audio-switcher/issues). I'll do my best to help!
 
 ## 📜 License
 
-This project is licensed under the [Apache 2.0] License - see the `LICENSE.md` file for details.
+This project is licensed under the [Apache 2.0](LICENSE.md) License - see the `LICENSE.md` file for details.
