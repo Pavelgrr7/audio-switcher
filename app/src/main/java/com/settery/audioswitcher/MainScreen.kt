@@ -1,5 +1,6 @@
 package com.settery.audioswitcher
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -24,6 +24,8 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -31,22 +33,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
-    currentMode: Mode,
-    onModeSelected: (Mode) -> Unit,
-    onEnableServiceClicked: () -> Unit,
-    onLoggingStateSelected: (LoggingState) -> Unit,
-    isAccessibilityServiceEnabled: Boolean
+    viewModel: ServiceViewModel,
+
 ) {
-    var isLogsDialog = remember {mutableStateOf(false)}
+
+    val currentMode by viewModel.currentMode.observeAsState(
+                        initial = viewModel.currentMode.value ?: Mode.OFF
+                    )
+
+    val loggingState by viewModel.loggingState.collectAsState()
+    var showLogsDialog by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     Scaffold(
         floatingActionButton = {
             SmallFloatingActionButton(
-                onClick = { isLogsDialog.value = !isLogsDialog.value },
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                onClick = { showLogsDialog = true },
                 contentColor = MaterialTheme.colorScheme.secondary
             ) {
                 Icon(Icons.Filled.Build, "Small floating action button.")
@@ -62,21 +77,92 @@ fun MainScreen(
         ) {
             HeaderSection()
             EnableServiceButton(
-                onClick = onEnableServiceClicked,
+                onClick = { viewModel.onEnableServiceClicked() },
             )
 
             ModeSelectionSection(
                 selectedMode = currentMode,
-                onModeSelected = onModeSelected
+                onModeSelected = { viewModel.setMode(it) }
             )
         }
-        if (isLogsDialog.value) {
+        if (showLogsDialog) {
             LogsDialog(
-                onDismiss = {
-                        isLogsDialog.value = !isLogsDialog.value
-                },
-                onLoggingStateSelected = onLoggingStateSelected
+                onDismiss = { showLogsDialog = false },
+                loggingState = loggingState,
+                onToggleClick = { viewModel.toggleLoggingState() },
+                onSendLogsAndStop = {
+                    scope.launch(Dispatchers.IO) { // Файловые операции в фоновом потоке
+                        val logFile: File? = LogManager.getLogsAsFile(context)
+
+                        // главный поток, запуск Intent
+                        withContext(Dispatchers.Main) {
+                            if (logFile != null) {
+                                viewModel.sendEmailWithAttachment(context, logFile)
+                            } else {
+                                Toast.makeText(context, "Log file could not be created.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                    viewModel.toggleLoggingState()
+                }
             )
+        }
+    }
+}
+
+@Composable
+fun LogsDialog(
+    loggingState: LoggingState,
+    onDismiss: () -> Unit,
+    onToggleClick: () -> Unit,
+    onSendLogsAndStop: () -> Unit
+) {
+Dialog(
+        onDismissRequest = onDismiss,
+    ) {
+        Surface(
+            modifier = Modifier
+                .wrapContentHeight()
+                .wrapContentWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    stringResource(R.string.logs_dialog_title),
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.logs_dialog_subtitle),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        if (loggingState == LoggingState.ACTIVE) {
+                            // Если запись идет, вызываем новую лямбду
+                            onSendLogsAndStop()
+                            onDismiss() // Закрываем диалог
+                        } else {
+                            // Иначе просто переключаем состояние
+                            onToggleClick()
+                        }
+                    },
+//                        modifier = Modifier.fillMaxWidth() //  кнопка на всю ширину
+                ) {
+                    if (loggingState == LoggingState.ACTIVE) {
+                        Text(stringResource(R.string.stop_logs_recording))
+                    } else {
+                        Text(stringResource(R.string.start_logs_recording))
+                    }
+                }
+            }
         }
     }
 }
@@ -151,61 +237,6 @@ private fun ModeSelectionItem(
     }
 }
 
-@Composable
-fun LogsDialog(
-    onDismiss: () -> Unit,
-    onLoggingStateSelected: (LoggingState) -> Unit,
-) {
-    var isLogsRecording = remember {mutableStateOf(false)}
-    Dialog(
-        onDismissRequest = onDismiss,
-    ) {
-        Surface(
-            modifier = Modifier
-                .wrapContentHeight()
-                .wrapContentWidth(),
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 8.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    stringResource(R.string.logs_dialog_title),
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.logs_dialog_subtitle),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = {
-                            if (!isLogsRecording.value) {
-                                onLoggingStateSelected(LoggingState.ACTIVE)
-                                isLogsRecording.value = !isLogsRecording.value
-                            } else {
-                                onLoggingStateSelected(LoggingState.OFF)
-                                isLogsRecording.value = !isLogsRecording.value
-                            }
-                        },
-//                        modifier = Modifier.fillMaxWidth() //  кнопка на всю ширину
-                    ) {
-                        if (isLogsRecording.value) {
-                            Text(stringResource(R.string.stop_logs_recording))
-                        } else {
-                            Text(stringResource(R.string.start_logs_recording))
-                        }
-                    }
-//                }
-            }
-        }
-    }
-}
 //
 //@Preview(showBackground = true)
 //@Composable
